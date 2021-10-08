@@ -1,4 +1,5 @@
 :imagesdir: Images
+:figure-caption: Рисунок
 
 [.text-center]
 МИНИСТЕРСТВО НАУКИ И ВЫСШЕГО ОБРАЗОВАНИЯ РОССИЙСКОЙ ФЕДЕРАЦИИ +
