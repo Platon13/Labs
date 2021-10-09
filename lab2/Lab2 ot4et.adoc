@@ -1,4 +1,4 @@
-:imagesdir: Images
+:imagesdir: images
 :figure-caption: Рисунок
 :toc: Оглавление
 
