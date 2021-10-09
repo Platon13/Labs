@@ -1,4 +1,4 @@
-:imagesdir: Images
+:imagesdir: images
 
 [.text-center]
 МИНИСТЕРСТВО НАУКИ И ВЫСШЕГО ОБРАЗОВАНИЯ РОССИЙСКОЙ ФЕДЕРАЦИИ +
