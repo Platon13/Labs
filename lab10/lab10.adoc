@@ -29,21 +29,24 @@
 С помощью прерываний по интерфейсу USART передать фразу "Hello World!" в приложение Terminal. Также необходимо с помощью прерываний и таймеров TIM2 и TIM3 включать и выключать светодиоды для таймера TIM2 раз в полсекунды, а для таймера TIM3 раз в секунду.
 --
 === 1. Включение светодиодов
-Для начала дадим определение прерываниям.
+Для начала дадим определение прерывания.
 
-*Прерывание* (англ. interrupt) — сигнал от программного или аппаратного обеспечения, сообщающий процессору о наступлении какого-либо события, требующего немедленного внимания. *Прерывание* извещает процессор о наступлении высокоприоритетного события, требующего прерывания текущего кода, выполняемого процессором.
+image::img1.png[]
 
 Для настройки таймера необходимо подключить библиотеки для регистров таймера и прерываний.
 
 Библиотеки, которые необходимо подключить для таймера *TIM2* и *TIM3* приведены ниже.
 [source,c]
 ----
-#include "gpiocregisters.hpp"   //for Gpioc
-#include "gpioaregisters.hpp"   //for Gpioa
-#include "rccregisters.hpp"     //for RCC
-#include "tim2registers.hpp"    //for TIM2
-#include "tim3registers.hpp"    //for TIM3
-#include "nvicregisters.hpp"    //for NVIC
+#include "gpiocregisters.hpp" //for Gpioc
+#include "gpioaregisters.hpp" //for Gpioa
+#include "rccregisters.hpp"   //for RCC
+#include "tim2registers.hpp"   //for SPI2
+#include "nvicregisters.hpp"  //for NVIC
+#include "tim3registers.hpp"
+#include "usart2registers.hpp" // for USART2
+#include <string>
+#include "MessageTransmitter.h"
 ----
 
 Необходимо настроить плату на (в нашем случае) внешний тактовый генератор (8 МГц) и подать тактирование на *GPIOC* и настроить необходимые порты (8-ой и 5-ый) на выход. Листинг кода приведен ниже.
