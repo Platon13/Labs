@@ -417,7 +417,7 @@ int main(void)
 Представим работу светодиодов и интерфейса *USART* (рисунок 9 и 10).
 
 .Результат работы светодиодов
-image::gif1.gif[]
+image::gif.gif[]
 
 .Вывод результата в программе *Terminal v1.9*
-image::img9.png[]
+image::img10.png[]
