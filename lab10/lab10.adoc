@@ -1,0 +1,386 @@
+:imagesdir: Images
+:figure-caption: Рисунок
+:toc:
+:toc-title: ОГЛАВЛЕНИЕ:
+
+== Лабораторная работа №10
+=== Задание
+--
+С помощью прерываний по интерфейсу USART передать фразу "Hello World!" в приложение Terminal. Также необходимо с помощью прерываний и таймеров TIM2 и TIM3 включать и выключать светодиоды для таймера TIM2 раз в полсекунды, а для таймера TIM3 раз в секунду.
+--
+=== 1. Включение светодиодов
+Для начала дадим определение прерываниям.
+
+*Прерывание* (англ. interrupt) — сигнал от программного или аппаратного обеспечения, сообщающий процессору о наступлении какого-либо события, требующего немедленного внимания. *Прерывание* извещает процессор о наступлении высокоприоритетного события, требующего прерывания текущего кода, выполняемого процессором.
+
+Для настройки таймера необходимо подключить библиотеки для регистров таймера и прерываний.
+
+Библиотеки, которые необходимо подключить для таймера *TIM2* и *TIM3* приведены ниже.
+[source,c]
+----
+#include "gpiocregisters.hpp"   //for Gpioc
+#include "gpioaregisters.hpp"   //for Gpioa
+#include "rccregisters.hpp"     //for RCC
+#include "tim2registers.hpp"    //for TIM2
+#include "tim3registers.hpp"    //for TIM3
+#include "nvicregisters.hpp"    //for NVIC
+----
+
+Необходимо настроить плату на (в нашем случае) внешний тактовый генератор (8 МГц) и подать тактирование на *GPIOC* и настроить необходимые порты (8-ой и 5-ый) на выход. Листинг кода приведен ниже.
+
+[source,c]
+----
+//Switch on external 8 MHz oscillator
+RCC::CR::HSEON::On::Set() ;
+while (!RCC::CR::HSERDY::Ready::IsSet())
+{
+
+}
+//Switch system clock on external oscillator
+RCC::CFGR::SW::Hse::Set() ;
+while (!RCC::CFGR::SWS::Hse::IsSet())
+{
+
+}
+
+RCC::AHB1ENR::GPIOCEN::Enable::Set(); //Подали тактирование на порт GPIOC
+GPIOC::MODER::MODER8::Output::Set();  //Настроили порт PORTC.8 на выход
+GPIOC::MODER::MODER5::Output::Set();  //Настроили порт PORTC.5 на выход
+----
+
+==== 1.1 Прерывание по таймеру TIM2
+
+Настроим таймер *TIM2*.
+
+Согласно регистру *RCC* переключение на частоты таймера *TIM2* происходит в 0 бите (рисунок 1).
+
+.Регистр *RCC_APB1ENR*
+image::img1.png[]
+
+Далее записываем в регистр *TIM2_PSC* значение тактовой частоты счетчика с помощью переменной *TimerPrescaler*, которая была определена раньше.
+
+.Регистр *TIMx_PSC*
+image::img2.png[]
+
+Листинг кода определения тактовой частоты.
+[source,c]
+----
+constexpr auto SystemClock = 8'000'000U;
+constexpr auto TimerClock = 1'000U;
+constexpr auto TimerPrescaler = SystemClock / TimerClock;
+----
+
+Настройка прерывания происходит в регистре *NVIC_INSER0* (для таймера *TIM2*). Таймер *TIM2* стоит на позиции 28 (рисунок 3).
+
+.Таблица векторов прерывания
+image::img3.png[]
+
+Затем необходимо включить прерывание с помощью регистра *TIMx_DIER* и выбрать *UIE* (рисунок 4).
+
+.Регистр *TIMx_DIER*
+image::img4.png[]
+
+В конце включим таймер *TIM2* с помощью регистра *TIMx_CR1* и выберем *CEN* (рисунок 5).
+
+.Регистр *TIMx_CR1*
+image::img5.png[]
+
+Листинг кода настройки таймера *TIM2* приведен ниже.
+[source,c]
+----
+//Настройка таймера 2
+RCC::APB1ENR::TIM2EN::Enable::Set();
+TIM2::PSC::Write(TimerPrescaler);
+
+//Установка нижнего и верхнего предела отсчета таймера, то есть он считает от 0 до 1000 мс (или раз в 1 секунду будет моргать светодиод)
+TIM2::ARR::Write(1000);
+TIM2::CNT::Write(0);
+
+//Настройка прерывания
+NVIC::ISER0::Write(1 << 28U);    //Разрешить глобальное прерывание
+TIM2::DIER::UIE::Enable::Set();
+TIM2::CR1::CEN::Enable::Set();
+----
+
+Настройка функции прерывания происходит в файле *interrupthandler.hpp*. Опишем функцию для таймера *TIM2* в данном файле. В данном файле используется регистр статуса *TIMx_SR* бит 0 (*UIF*), который проверяет *flag* запуска прерывания и если он активен, то выключает прерывание и включается светодиод.
+
+.Регистр *TIMx_SR*
+image::img6.png[]
+
+Листинг кода файла *interrupthandler.hpp* приведен ниже.
+
+[source,c]
+----
+//
+// Created by Sergey on 21.11.2019.
+//
+
+#ifndef REGISTERS_INTERRUPTHANDLER_HPP
+#define REGISTERS_INTERRUPTHANDLER_HPP
+
+
+#include "tim2registers.hpp"  //for TIM2
+#include "gpiocregisters.hpp"  //for GPIOC
+#include "messagetransmitter.h" // for MessageTransmitter
+
+class InterruptHandler {
+  public:
+    static void DummyHandler() { for(;;) {} }
+    static void Timer2Handler()
+    {
+      //
+      if (TIM2::SR::UIF::UpdatePending::IsSet())
+      {
+        TIM2::SR::UIF::NoUpdate::Set();
+        GPIOC::ODR::Toggle(1 << 8) ;
+      }
+    }
+};
+
+#endif //REGISTERS_INTERRUPTHANDLER_HPP
+----
+
+Чтобы прерывание работало необходимо задать использование данной функции в файле *startup.cpp*, в котором после закомментрированной строчки *//External Interrupts* отсчитать 28 позиций, как раз на которой должен находится *TIM2* (рисунок 3) согласно таблице прерываний. И записать туда функцию данную. Листинг кода данного файла приведен ниже.
+[source,c]
+----
+#include "interrupthandler.hpp"  //for InterruptHandler
+
+extern "C" void __iar_program_start(void) ;
+
+using tIntFunct = void(*)();
+using tIntVectItem = union {tIntFunct __fun; void * __ptr;};
+#pragma segment = "CSTACK"
+#pragma location = ".intvec"
+const tIntVectItem __vector_table[] =
+{
+  { .__ptr = __sfe( "CSTACK" ) }, //????????????? ????????? ?? ????
+    __iar_program_start, //????? ??????? ????? ????? ? ?????????
+
+  InterruptHandler::DummyHandler,
+  InterruptHandler::DummyHandler,
+  InterruptHandler::DummyHandler,
+  InterruptHandler::DummyHandler,
+  InterruptHandler::DummyHandler,
+  0,
+  0,
+  0,
+  0,
+  InterruptHandler::DummyHandler,
+  InterruptHandler::DummyHandler,
+  0,
+  InterruptHandler::DummyHandler,
+  InterruptHandler::DummyHandler,
+  //External Interrupts
+  InterruptHandler::DummyHandler,         //Window Watchdog
+  InterruptHandler::DummyHandler,         //PVD through EXTI Line detect/EXTI16
+  InterruptHandler::DummyHandler,   //Tamper and Time Stamp/EXTI21
+  InterruptHandler::DummyHandler,         //RTC Wakeup/EXTI22
+  InterruptHandler::DummyHandler,         //FLASH
+  InterruptHandler::DummyHandler,         //RCC
+  InterruptHandler::DummyHandler,         //EXTI Line 0
+  InterruptHandler::DummyHandler,         //EXTI Line 1
+  InterruptHandler::DummyHandler,         //EXTI Line 2
+  InterruptHandler::DummyHandler,         //EXTI Line 3
+  InterruptHandler::DummyHandler,         //EXTI Line 4
+  InterruptHandler::DummyHandler,         //DMA1 Stream 0
+  InterruptHandler::DummyHandler,        //DMA1 Stream 1
+  InterruptHandler::DummyHandler,        //DMA1 Stream 2
+  InterruptHandler::DummyHandler,        //DMA1 Stream 3
+  InterruptHandler::DummyHandler,       //DMA1 Stream 4
+  InterruptHandler::DummyHandler,      //DMA1 Stream 5
+  InterruptHandler::DummyHandler,      //DMA1 Stream 6
+  InterruptHandler::DummyHandler,              //ADC1
+  0,   //USB High Priority
+  0,    //USB Low  Priority
+  0,               //DAC
+  0,              //COMP through EXTI Line
+  InterruptHandler::DummyHandler,         //EXTI Line 9..5
+  InterruptHandler::DummyHandler,              //TIM9/TIM1 Break interrupt
+  InterruptHandler::DummyHandler,             //TIM10/TIM1 Update interrupt
+  InterruptHandler::DummyHandler,             //TIM11/TIM1 Trigger/Commutation interrupts
+  InterruptHandler::DummyHandler,			   //TIM1 Capture Compare interrupt
+  InterruptHandler::Timer2Handler,         //TIM2 28
+};
+
+extern "C" void __cmain(void) ;
+extern "C" __weak void __iar_init_core(void) ;
+extern "C" __weak void __iar_init_vfp(void) ;
+
+#pragma required = __vector_table
+void __iar_program_start(void) {
+  __iar_init_core() ;
+  __iar_init_vfp() ;
+  __cmain() ;
+}
+----
+
+==== 1.2 Прерывание по таймеру TIM3
+
+Настройка таймера производится точно также, за исключением того, что нужно подключить другую библиотеку, также согласно таблице прерываний *TIM3* находится на позиции 29, то есть на эту позицию необходимо вставить функцию прерывания по таймеру *TIM3* и также нужно будет поменять время с 1000 мс на 500 мс, чтобы согласно заданию всё работало.
+
+Листинг настройки таймера *TIM3* приведен ниже.
+[source,c]
+----
+//Настройка таймера 3
+RCC::APB1ENR::TIM3EN::Enable::Set();
+TIM3::PSC::Write(TimerPrescaler);
+TIM3::ARR::Write(500);
+TIM3::CNT::Write(0);
+NVIC::ISER0::Write(1 << 29U);    //Разрешить глобальное прерывание
+TIM3::DIER::UIE::Enable::Set();
+TIM3::CR1::CEN::Enable::Set();
+----
+
+Листинг функции прерывания для таймера *TIM3* приведен ниже.
+[source,c]
+----
+static void Timer3Handler()
+    {
+      if (TIM3::SR::UIF::UpdatePending::IsSet())
+      {
+        TIM3::SR::UIF::NoUpdate::Set();
+        GPIOC::ODR::Toggle(1 << 5) ;
+      }
+    }
+----
+
+=== 2. Передача словосочетания Hello World по интерфейсу USART
+Для начала опишем всю структуру в программе *StarUML*.
+
+.Структура программы передачи словосочетания Hello World по USART
+image::img7.png[]
+
+В данной структуре имеются функции *Send(message: string&)* и *OnByteTransmitte()*, первая принимает сообщение и передает каждый бит в массив *buffer* и затем записывает этот *buffer* в передачу интерфейса *USART* и разрешает передачу. Вторая же функция также передает в передачу интерфейса символы, пока количество их не станет равным количеству символов введенной переменной. Иначе запрещает передачу по интерфейсу *USART*. Переменная *isMessageTransmit* (используется в качестве флага) отвечает за полную передачу слова по интерфейсу *USART*, если бы ее не было, то передавась бы только 1 буква *H*. Две переменные *byteCounter* и *messageLenght* отвечают за: 1-ая - счетчик символов слова, 2-ая - длину сообщения (слова).
+
+Осталось всё описать программно. Создаем папку *MessageTransmitter* и два файла *messagetransmitter.h* и *messagetransmitter.cpp*. Не забываем подключить путь к данным файлам в опциях проекта. В первом файле опишем все переменные и функции, которые используются в программе, а во втором опишем функции.
+
+Листинг кода файла *messagetransmitter.cpp* представлен ниже:
+[source,c]
+----
+#include "messagetransmitter.h"
+#include "usart2registers.hpp" // for USART2
+
+void MessageTransmitter::Send(const std::string& message)
+{
+  if(isMessageTransmit)
+  {
+    isMessageTransmit = false;
+    //Скопировать строку в буфер
+    std::copy_n(message.begin(), message.size(), buffer.begin());
+    byteCouter = 0;
+    messageLenght = message.size();
+
+    USART2::DR::Write(buffer[byteCouter]);
+    USART2::CR1::TE::Enable::Set();     //Разрешаем передачу
+    USART2::CR1::TXEIE::Enable::Set();  //Разрешаем передачу по опустошению регистра
+
+    byteCouter++;
+  }
+}
+
+void MessageTransmitter::OnByteTransmit()
+{
+  if(byteCouter <= messageLenght)
+  {
+    USART2::DR::Write(buffer[byteCouter]);
+    byteCouter++;
+  }
+  else
+  {
+    isMessageTransmit = true;
+    USART2::CR1::TE::Disable::Set();     //Запрет на передачу
+    USART2::CR1::TXEIE::Disable::Set();  //Запрещаем передачу по опустошению регистра
+  }
+}
+----
+
+Листинг кода файла *messagetransmitter.h* представлен ниже:
+[source,c]
+----
+#pragma once
+#include <string> // for std::string
+#include <array> // for std::array
+
+class MessageTransmitter
+{
+public:
+  static void Send(const std::string& message);
+  static void OnByteTransmit();
+private:
+  inline static bool isMessageTransmit = true;
+  inline static std::array<uint8_t, 255> buffer = {};
+  inline static size_t byteCouter = 0U;
+  inline static size_t messageLenght = 0U;
+};
+----
+
+Затем необходимо описать библиотеку для *USART* в файле *main.cpp*.
+[source,c]
+----
+#include "gpiocregisters.hpp"   //for Gpioc
+#include "gpioaregisters.hpp"   //for Gpioa
+#include "rccregisters.hpp"     //for RCC
+#include "tim2registers.hpp"    //for TIM2
+#include "tim3registers.hpp"    //for TIM3
+#include "nvicregisters.hpp"    //for NVIC
+#include "usart2registers.hpp"  //for USART2
+#include <string> //for std::string
+#include "messagetransmitter.h" //for MessageTransmitter
+----
+
+Также в файле *main.c* необходимо настроить интерфейс *USART*. Согласно таблице прерываний интерфейс *USART2* находится на позиции 38, то тут уже используется регистр *NVIC_ISER1*. Вся остальная настройка производится также как и в прошлой лабораторной работе №9.
+
+Листинг настройки *USART2* приведен ниже.
+[source,c]
+----
+//Настройка USART2
+
+//Порт А к системе тактирования
+
+RCC::AHB1ENR::GPIOAEN::Enable::Set();
+
+//Порт А2 и А3 на альтернативный режим работы
+
+GPIOA::MODER::MODER2::Alternate::Set();
+GPIOA::MODER::MODER3::Alternate::Set();
+
+//Назначение портов А2 и А3 на альтернативную функцию 7
+GPIOA::AFRL::AFRL2::Af7::Set();  // USART2 Tx
+GPIOA::AFRL::AFRL3::Af7::Set();  // USART2 Rx
+
+//Подключаем USART2 к системе тактирования APB1
+RCC::APB1ENR::USART2EN::Enable::Set();
+
+USART2::CR1::OVER8::OversamplingBy8::Set();
+USART2::CR1::M::Data8bits::Set();
+USART2::CR1::PCE::ParityControlDisable::Set();
+
+USART2::BRR::Write(8'000'000 / 9600); // 8 МГц с внешнего генератора HSE
+USART2::CR1::UE::Enable::Set();
+
+NVIC::ISER1::Write(1 << 6U);    //Разрешить глобальное прерывание
+----
+
+Осталось в функции *main* описать работу программы.
+
+Листинг кода функции *main* предасавлен ниже.
+[source,c]
+----
+int main(void)
+{
+  std::string TestMessage = "Hello world! ";
+
+  for(;;)
+  {
+    MessageTransmitter::Send(TestMessage);
+  }
+}
+----
+
+Представим работу светодиодов и интерфейса *USART* (рисунок 8 и 9).
+
+.Результат работы светодиодов
+image::gif1.gif[]
+
+.Вывод результата в программе *Terminal v1.9*
+image::img9.png[]
