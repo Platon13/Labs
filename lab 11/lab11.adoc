@@ -61,7 +61,7 @@ image::3.jpg[]
 
 === 3. Написание кода
 
-Создали класс MyFirstTask, который наследует класс Thread. У класса Thread есть метод Execute. Переопределили виртуальный метод Execute.
+Создали класс MyFirstTask, который наследует класс Thread. У класса Thread есть метод Execute. Переопределили виртуальный метод Execute. +
 Программа "myfirsttask.h" представлена ниже.
 
 [source, c]
@@ -87,8 +87,7 @@ void MyFirstTask::Execute()
   }
 }
 
-Класс ButtonTask для наследования класса Thread и для кнопки с помощью метода MailBox.
-
+Класс ButtonTask для наследования класса Thread и для кнопки с помощью метода MailBox. +
 Программа "buttontask.h" представлена ниже.
 
 [source, c]
@@ -131,11 +130,9 @@ private:
 Программа "ledtask.h" представлена ниже.
 [source, c]
 #pragma once
-
 #include "thread.hpp" //for Thread
 #include "event.hpp"  //for Event
 #include "mailbox.hpp" //for MailBox
-
  class LedTask: public OsWrapper::Thread(100)
   {
    public:
@@ -149,7 +146,6 @@ private:
   };
   
 Создаем класс LedTask. Для описания метода Execute, который проверяет нажатие кнопки, и включает 2 светодиода и через 100 ms усыпляет. +
-
 Программа "ledtask.cpp" представлена ниже.
 
 [source, c]
