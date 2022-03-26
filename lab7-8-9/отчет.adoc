@@ -130,7 +130,7 @@ template<typename Port, uint32_t pinNum>
 class Led
 {
 public:
-  void Toggle(); // публичный метод toogle, скобки () означают, что он виртуальный
+  void Toggle(); // публичный метод toogle
   {
    Port::BSRR::Write(pinNum << 16);
   }
