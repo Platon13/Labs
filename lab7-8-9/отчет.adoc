@@ -22,8 +22,7 @@
 
 
 == Задание к работе
-    а.Сделать программу с использование ООП которая выполняет следующие действия. Доделать дизайн, который позволяет настраивать любой режим моргания светодиодов,+
-    с любым количеством светодиодов, привязанных к любым пинам портов. +
+    а.Сделать программу с использование ООП которая выполняет следующие действия. Доделать дизайн, который позволяет настраивать любой режим моргания светодиодов, с любым количеством светодиодов, привязанных к любым пинам портов. 
     б. Разрисовать архитектуру и дизайн ПО, а именно классы, методы классов и взаимодействия классов в StarUML. +
     Можно сгенерировать заготовки классов прямо из программы. Можно сделать все самим. По архитектуре написать и реализовать классы и потом и логику работы + программы. Все это должно быть в отчете.
 
@@ -123,14 +122,15 @@ bool IsPressed()
 
 === Класс Led
 
+
 [source, c]
 #pragma once
 #include "gpiocregisters.hpp" //for GPIOC
-template<typename Port, uint32_t pinNum>
+template<typename Port, uint32_t pinNum> 
 class Led
 {
 public:
-  void Toggle();
+  void Toggle(); // публичный метод toogle, скобки () означают, что он виртуальный
   {
    Port::BSRR::Write(pinNum << 16);
   }
@@ -162,21 +162,21 @@ public:
 [source, c]
 #pragma once
 #include "imode.h"
-template <auto& TLeds>
-class Chess : public IMode
+template <auto& TLeds> // ссылка на контейнер TLeds
+class Chess : public IMode // класс chess наследует публичный класс IMode
 {
 public:
-  void toggle() const override
+  void toggle() const override // поскольку переопределяем метод абстрактного класса IMode, то нужен override
  {
-   TLeds.toggle();
+   TLeds.toggle(); // 
  }
   void init() const override
  {
-    for ( uint32_t index =0; index < std::size(TLeds.pLeds); ++index)
+    for ( uint32_t index =0; index < std::size(TLeds.pLeds); ++index) // реализация метода init для затушения светодиодов
   {
-   if ((index %2)==0)
+   if ((index %2)==0) // елси остаток от деления = 0 
     {
-     TLeds.pLeds[index]->toggle();
+     TLeds.pLeds[index]->toggle(); // то надо переключить светодиоды
     }
   }
  }
@@ -304,11 +304,11 @@ void delayMs(uint32_t value)
   TIM2::SR::UIF::NoInterruptPending::Set();
   TIM2::CR1::CEN::Disable::Set();
 }
-Led<GPIOC, 5U> led1;
-Led<GPIOC, 8U> led2;
+Led<GPIOC, 5U> led1; // указываем на каком порту находится светодиод
+Led<GPIOC, 8U> led2; // и какими портами моргать
 Led<GPIOC, 9U> led3;
 Led<GPIOA, 5U> led4;
-Leds<&led1, &led2, &led3, &led4 >leds;
+Leds<&led1, &led2, &led3, &led4 >leds; // создали объект класса Leds, а также передали указатели на те светодиоды, которыми хотим моргать
 Button<GPIOC, 13U> userButton;
 Chess<leds> chessMode;
 All<leds> allMode;
