@@ -110,7 +110,7 @@ public:
 bool IsPressed()
 {
  bool result = false;
- if (GPIOC::IDR::IDR13::Low::IsSet())
+ if (GPIOC::IDR::IDR13::Low::IsSet()) // регистр IDR отвечает за считывание значений порта 
   {
   delay1(1000000);
   result = true;
@@ -310,7 +310,7 @@ Led<GPIOC, 9U> led3;
 Led<GPIOA, 5U> led4;
 Leds<&led1, &led2, &led3, &led4 >leds; // создали объект класса Leds, а также передали указатели на те светодиоды, которыми хотим моргать
 Button<GPIOC, 13U> userButton;
-Chess<leds> chessMode;
+Chess<leds> chessMode; // передали список светодиодов
 All<leds> allMode;
 Tree<leds> treeMode;
 Modes<&allMode, &treeMode, &chessMode> modes;
@@ -322,7 +322,7 @@ int main()
     if (userButton.IsPressed())
    {
      modes.nextMode();
-     delay += 50U;
+     delay += 50U; // опрашиваем кнопку 
    }
     modes.update();
    delayMs(delay);
