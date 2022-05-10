@@ -261,3 +261,7 @@ int main()
   Rtos::Start();
   return 0;
 }
+
+== 4) Результат программы.
+
+image::plata.gif[]
