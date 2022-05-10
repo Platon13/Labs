@@ -57,6 +57,33 @@ image::staruml.jpg[]
 
 === Класс Leds (для светодиодов)
 
+В нём мы подключаем порты светодиодов, 
+чтобы включить светодиоды на порте С и А необходимо подключить библиотеку:
+
+
+[source, c]
+#include "gpiocregisters.hpp" //for GPIOC
+#include "gpioaregisters.hpp"
+
+
+Для того чтобы светодиоды включались последовательно с некоторой задержкой, введем функцию delay
+
+[source, c]
+void delay (uint32_t value)
+{
+for(uint32_t i = 0; i < value; ++i)
+{
+asm volatile ("");
+}
+}
+
+
+Для того чтобы в дальнейшем цикл не проигнорировался компилятором, в цикл нужно добавить пустую ассемблерную процедуру asm volatile("").
+
+Далее  сделаем бесконечный цикл for(;;), в котором реализуем  включение и выключение светодиодов . 
+
+
+
 [source, c]
 #pragma once
 #include "gpiocregisters.hpp" //for GPIOC
@@ -109,6 +136,8 @@ void Option2()
 ;
 
 === Класс Button (для кнопки)
+
+Так же как и для класса Leds, вводим функцию delay и пустую ассемблерную процедуру asm volatile(""), настраиваем кнопку, настраиваем регистр IDR, который будет отвечать за считывание значений порта
 
 [source, c]
 #pragma once
@@ -175,7 +204,36 @@ public:
 ;
 
 === Класс Chess (режим Шахматы)
-Класс Chess реализован для попеременног моргания 1 и 3, 2 и 4 светодиодов.
+Класс Chess реализован для попеременного моргания 1 и 3, 2 и 4 светодиодов.
+
+Ссылаемся на контейнер TLeds
+
+[source, c]
+template <auto& TLeds>
+
+Далее наследуем публичный класс IMode
+
+[source, c]
+class Chess : public IMode
+
+Поскольку переопределяем метод абстрактного класса IMode, то нужен override
+
+[source, c]
+void toggle() const override 
+
+Затем реализуем метод init для затушения светодиодов
+
+[source, c]
+for ( uint32_t index =0; index < std::size(TLeds.pLeds); ++index) 
+
+Далее, если получаем остаток от деления, равный нулю, переключаем светодиоды
+
+[source, c]
+if ((index %2)==0) 
+    {
+     TLeds.pLeds[index]->toggle(); 
+    }
+
 
 [source, c]
 #pragma once
@@ -184,15 +242,15 @@ template <auto& TLeds> // ссылка на контейнер TLeds
 class Chess : public IMode // класс chess наследует публичный класс IMode
 {
 public:
-  void toggle() const override // поскольку переопределяем метод абстрактного класса IMode, то нужен override
+  void toggle() const override 
  {
    TLeds.toggle(); // 
  }
   void init() const override
  {
-    for ( uint32_t index =0; index < std::size(TLeds.pLeds); ++index) // реализация метода init для затушения светодиодов
+    for ( uint32_t index =0; index < std::size(TLeds.pLeds); ++index) 
   {
-   if ((index %2)==0) // елси остаток от деления = 0 
+   if ((index %2)==0) // если остаток от деления = 0 
     {
      TLeds.pLeds[index]->toggle(); // то надо переключить светодиоды
     }
@@ -255,7 +313,142 @@ private:
  }
 ;
 
-=== Код Main
+
+===Код Main
+
+
+Подключаем библиотеки для светодиодов и используем прописанные нами классы для светодиодов и режимов их работы
+
+[source, c]
+#include "gpioaregisters.hpp" //for GPIOC
+#include "gpiocregisters.hpp" //for GPIOC
+#include "rccregisters.hpp"   //for RCC
+#include <iostream>
+#include "Led.h" // for Led
+#include "Button.h" // for Button
+#include "iLed.h" // for iLed
+#include "leds.h" // for Leds
+#include "chess.h" // for Chess
+#include "All.h" // for All
+#include "Tree.h" // for Tree
+#include "modes.h" // for Modes
+#include "tim2registers.hpp"   //for SPI2
+#include "nvicregisters.hpp"  //for NVIC
+
+В функции main так же подключаем библиотеки для таймера:
+
+[source, c]
+#include "tim2registers.hpp"   //for SPI2
+#include "nvicregisters.hpp"  //for NVIC
+
+
+Также необходимо настроить таймер:
+
+Настройка таймера 2
+
+[source, c]
+    RCC::APB1ENR::TIM2EN::Enable::Set();
+    TIM2::PSC::Write(TimerPrescaler);   //TimerPrescaler = 16
+
+
+Настраиваем системную частоту, аналогично предыдущим работам:
+
+через регистр RCC_CR задаем системную частоту с внешнего модуля HSE. В описании к микроконтроллеру видим что, чтобы включить HSE, необходимо перевести бит HSEON в единицу.
+Затем проверяем, что частота с нового источника стабилизировалась.
+После включения генераторов частоты, выбираем его в качестве источника для системной частоты SYSCLK. Выбор осуществляется через регистр RCC_CFGR — Clock Configuration Register
+
+[source, c]
+ RCC::CR::HSEON::On::Set();
+  while (RCC::CR::HSERDY::NotReady::IsSet())
+  {
+  }
+  //Switch system clock on external oscillator
+  RCC::CFGR::SW::Hse::Set();
+
+
+Настраиваем светодиоды.
+Алгоритм настройки светодиодов:
+
+Определить какой порт нужно использовать
+
+Подключить нужный порт к источнику частоты через регистр RCC→AHB1ENR
+
+Определить нужна ли какая-то специфическая скорость для конктретного порта и если да, настроить её (через регистр GPIOx_OSPEEDR)
+
+Определить какие выводы портов нужно использовать как выход, а какие как вход
+
+Настроить нужные вывода порта на вход или выход (через регистр GPIOE→MODER)
+
+[source, c]
+GPIOA::OSPEEDR::OSPEEDR5::MediumSpeed::Set();
+  GPIOA::MODER::MODER5::Output::Set();
+  GPIOC::OSPEEDR::OSPEEDR13::MediumSpeed::Set();
+  GPIOC::MODER::MODER13::Input::Set();
+  GPIOC::OSPEEDR::OSPEEDR5::MediumSpeed::Set();
+  GPIOC::MODER::MODER5::Output::Set();
+  GPIOC::OSPEEDR::OSPEEDR8::MediumSpeed::Set();
+  GPIOC::MODER::MODER8::Output::Set();
+  GPIOC::OSPEEDR::OSPEEDR9::MediumSpeed::Set();
+  GPIOC::MODER::MODER9::Output::Set();
+  
+  Для организации задержки необходимо:
+
+Подать тактирование на модуль таймера
+
+Установить делитель частоты для таймера в регистре PSC
+
+Установить источник генерации прерываний по событию переполнение с помощью бита URS в регистре CR1
+
+Установить значение до которого счетчик будет считать в регистре перезагрузке ARR
+
+Скинуть флаг генерации прерывания UIF по событию в регистре SR
+
+Установить начальное значение счетчика в 0 в регистре CNT
+
+Запустить счетчик с помощью бита EN в регистре CR1
+
+Проверять пока не будет установлен флаг генерации прерывания по событию UIF в регистре SR
+
+Как только флаг установлен остановить счетчик, сбросить бит EN в регистре CR1, Сбросить флаг генерации прерывания UIF по событию в регистре SR
+
+Осталось проделать вышеперечисленные операции, создав функцию задержки. Создаем функцию задержки delayMs с использованием таймера:
+
+[source, c]
+void delayMs(uint32_t value)
+{
+  const auto delay = (TimerClock * value) / 1000U ; //check
+  TIM2::ARR::Write(delay);
+  TIM2::SR::UIF::NoInterruptPending::Set();
+  TIM2::CNT::Write(0U);
+  TIM2::CR1::CEN::Enable::Set();
+  while(TIM2::SR::UIF::NoInterruptPending::IsSet())
+    {
+    }
+  TIM2::SR::UIF::NoInterruptPending::Set();
+  TIM2::CR1::CEN::Disable::Set();
+  
+  После настройки светодиодов указываем на каком порту находится светодиод и какими портами моргать
+  
+[source, c]
+Led<GPIOC, 5U> led1;
+Led<GPIOC, 8U> led2;
+ 
+Создаём объект класса Leds, а также передаём указатели на те светодиоды, которыми хотим моргать
+
+[source, c]
+Leds<&led1, &led2, &led3, &led4 >leds;
+
+Передаём список светодиодов
+
+[source, c]
+Button<GPIOC, 13U> userButton;
+Chess<leds> chessMode;
+All<leds> allMode;
+Tree<leds> treeMode;
+Modes<&allMode, &treeMode, &chessMode> modes;
+  
+
+Код функции Main
 
 [source, c]
 #include "gpioaregisters.hpp" //for GPIOC
@@ -305,7 +498,7 @@ extern "C"
   GPIOC::MODER::MODER9::Output::Set();
    //âòîðîé òàéìåð
     RCC::APB1ENR::TIM2EN::Enable::Set();
-    TIM2::PSC::Write(TimerPrescaler);
+    TIM2::PSC::Write(TimerPrescaler); //TimerPrescaler = 16
   return 1;
  }
 }
