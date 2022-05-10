@@ -15,16 +15,275 @@
 Отчет по лабораторной работе №12
 
 [.text-right]
-Выполнил: +
-студент группы КЭ-415 +
+Выполнили: +
+студенты группы КЭ-415 +
 Леонов В.А. +
 Платонов Д.В.
 
-:toc:
-:toc-title: ОГЛАВЛЕНИЕ:
 
-== Лабораторная работа №12
-=== Задание
---
-Сделать 2 задачи, которые посылают сообщение в UAR. Первое сообщение "Hello world", а второе "Привет. Как дела?". Первое сообщение делает посылку 1 раз в секунду,
-а второе 1,1 раз в секунду. Приоритет у одной из задачи выше, чем у другой. Скорость передачи 1200 бит в сек.
+== Задание к работе
+
+С помощью Операционных Систем Реального Времени (ОСРВ) и Free RTOS написать код, который по
+интерфейсу UART со скоростью передачи 1200 передаст сообщения "Hello World!" и "Privet kak dela!"
+с задержками 100 ms и 110 ms,в программу Terminal v1.9.
+
+== 1) Структура программы в StarUML
+
+Структура программы будет состоять из одного класса SendMessageTask
+,в который будет передаваться через UART сообщение. Так же будет наследовать класс
+Thread c виртуальным методом Execute. И переменный отвечающие за
+сообщения, указатель и задержку соответсвенно sendMessage,ptr
+и delayTask.
+
+Структура представлена ниже на рисунке.
+
+image::12_1.jpg[]
+
+== 2) Написание кода
+
+Здесь template<typename TUSART> выступает в качестве шаблона,
+то есть в класс будет передаваться необходимый канал интерфейса
+USART, в нашем случае USART2.
+
+Программа sendmessagetask.h представлен ниже:
+
+[source, c]
+#pragma once
+#include "thread.hpp" //for Thread
+template<typename TUSART>
+class SendMessageTask: public OsWrapper::Thread(200)
+{
+public:
+SendMessageTask(const char* message, std::chrono::milliseconds delay): sendMessage(message), delayTask(delay)
+{
+}
+void Execute() override;
+private:
+const char* sendMessage = nullptr;
+const char* ptr;
+std::chrono::milliseconds delayTask;
+};
+template<typename TUSART>
+void SendMessageTask<TUSART>::Execute()
+ {
+  TUSART::CR1::TE::Enable::Set();
+   for(;;)
+  {
+    ptr = sendMessage;
+    while(*ptr!=0)
+   {
+      // Передача сообщения по USART
+      TUSART::DR::Write(*ptr);
+      while(TUSART::SR::TXE::DataRegisterNotEmpty::IsSet())
+    {
+    }
+      ptr++;
+   }
+    Sleep(delayTask);
+  }
+ }
+
+Программа main.cpp представлена ниже:
+
+[source, c]
+#include "rtos.hpp"         // for Rtos
+#include "usart2registers.hpp" //for USART2
+#include "rccregisters.hpp" // for RCC
+#include "sendmessagetask.h"    // for SendMessageTask
+#include "Application/Diagnostic/GlobalStatus.hpp"
+#include <gpioaregisters.hpp>  // for GPIOA
+#include <gpiocregisters.hpp>  // for GPIOC
+std::uint32_t SystemCoreClock = 16'000'000U;
+extern "C" {
+int __low_level_init(void)
+{
+//Switch on external 16 MHz oscillator
+RCC::CR::HSEON::On::Set();
+while (RCC::CR::HSERDY::NotReady::IsSet())
+  {
+  }
+      //Switch system clock on external oscillator
+      RCC::CFGR::SW::Hse::Set();
+      while (!RCC::CFGR::SWS::Hse::IsSet())
+  {
+  }
+  //Switch on clock on PortA and PortC
+      RCC::AHB1ENRPack<
+      RCC::AHB1ENR::GPIOCEN::Enable,
+      RCC::AHB1ENR::GPIOAEN::Enable
+  >::Set();
+     RCC::APB2ENR::SYSCFGEN::Enable::Set();
+  //LED1 on PortA.5, set PortA.5 as output
+     GPIOA::MODER::MODER5::Output::Set();
+  /* LED2 on PortC.9, LED3 on PortC.8, LED4 on PortC.5 so set PortC.5,8,9 as output */
+      GPIOC::MODERPack<
+      GPIOC::MODER::MODER5::Output,
+      GPIOC::MODER::MODER8::Output,
+      GPIOC::MODER::MODER9::Output
+  >::Set();
+  //Порт А2 и А3 на альтернативный режим работы
+      GPIOA::MODER::MODER2::Alternate::Set();
+      GPIOA::MODER::MODER3::Alternate::Set();
+  //Назначение портов А2 и А3 на альтернативную функцию 7
+      GPIOA::AFRL::AFRL2::Af7::Set();  // USART2 Tx
+      GPIOA::AFRL::AFRL3::Af7::Set();  // USART2 Rx
+  //Подключение USART2 к системе тактирования APB1
+      RCC::APB1ENR::USART2EN::Enable::Set();
+      USART2::CR1::OVER8::OversamplingBy16::Set();
+      USART2::CR1::M::Data8bits::Set();
+      USART2::CR1::PCE::ParityControlDisable::Set();
+      USART2::BRR::Write(8'000'000 / 1200); // 16 МГц с внешнего генератора HSE
+      USART2::CR1::UE::Enable::Set();
+  return 1;
+ }
+}
+    const char message1[] = "Hello world! ";// Переменные в которые записывается сообщение
+    const char message2[] = "Privet kak dela! ";
+  SendMessageTask<USART2> sendMessageTask1(message1, 100ms);
+// Объект класс SendMessageTask в которую передается сообщение и нужная нам задержка
+  SendMessageTask<USART2> sendMessageTask2(message2, 110ms);
+ int main()
+{
+    Rtos::CreateThread(sendMessageTask1, "FirstMessageTask", ThreadPriority::normal);
+    // Задаем приоритет и запускаем с помощью Free RTOS
+    Rtos::CreateThread(sendMessageTask2, "SecondMessageTask", ThreadPriority::highest);
+    Rtos::Start();
+  return 0;
+ }
+
+== 3) Результат программы
+
+image::12__2.jpg[]
+
+Получили некорректный вывод сообщений. Прибегнем к классу Mutex.
+
+== 4) Написание кода с использованием класса Mutex
+
+Класс Mutex управляет синхронизацией потоков. А в нашем случае поможет
+сделать корректный вывод сообщений, то есть, пока первое
+сообщение полностью не передастся, второе не прервет его.
+
+В sendmessagetask.h добавляем библиотеку
+Mutex, глобально обьявляем его объект - USARTMutex. Проводим
+"захват" Mutex на 200 мс с помощью функции Lock, и после
+передачи сообщения "выпускаем" Mutex функцией UnLock.
+
+Программа sendmessagetask.h представлен ниже:
+
+[source, c]
+#pragma once
+#include "thread.hpp" //for Thread
+#include "mutex.hpp" //for Mutex
+ extern OsWrapper::Mutex USARTMutex;
+ template<typename TUSART>
+class SendMessageTask: public OsWrapper::Thread(200)
+{
+public:
+ SendMessageTask(const char* message, std::chrono::milliseconds delay): sendMessage(message), delayTask(delay)
+  {
+  }
+ void Execute() override;
+private:
+ const char* sendMessage = nullptr;
+ const char* ptr;
+ std::chrono::milliseconds delayTask;
+};
+
+template<typename TUSART>
+void SendMessageTask<TUSART>::Execute()
+ {
+  TUSART::CR1::TE::Enable::Set();
+  for(;;)
+   {
+    // Захват мьютекса
+    USARTMutex.Lock(200);
+    ptr = sendMessage;
+    while(*ptr!=0)
+    {
+      // Передача сообщения по USART
+      TUSART::DR::Write(*ptr);
+      while(TUSART::SR::TXE::DataRegisterNotEmpty::IsSet())
+     {
+     }
+      ptr++;
+    }
+    // Освобождение мьютекса
+    USARTMutex.UnLock();
+    Sleep(delayTask);
+   }
+ }
+
+В main.cpp следует добавить библиотеку mutex.hpp.
+
+Программа main.cpp представлен ниже:
+
+[source, c]
+#include "rtos.hpp"         // for Rtos
+#include "usart2registers.hpp" //for USART2
+#include "rccregisters.hpp" // for RCC
+#include "sendmessagetask.h"    // for SendMessageTask
+#include "mutex.hpp" // for Mutex
+#include "Application/Diagnostic/GlobalStatus.hpp"
+#include <gpioaregisters.hpp>  // for GPIOA
+#include <gpiocregisters.hpp>  // for GPIOC
+std::uint32_t SystemCoreClock = 16'000'000U;
+extern "C" {
+int __low_level_init(void)
+{
+//Switch on external 16 MHz oscillator
+RCC::CR::HSEON::On::Set();
+ while (RCC::CR::HSERDY::NotReady::IsSet())
+  {
+  }
+  //Switch system clock on external oscillator
+  RCC::CFGR::SW::Hse::Set();
+  while (!RCC::CFGR::SWS::Hse::IsSet())
+  {
+  }
+  //Switch on clock on PortA and PortC
+  RCC::AHB1ENRPack<
+      RCC::AHB1ENR::GPIOCEN::Enable,
+      RCC::AHB1ENR::GPIOAEN::Enable
+  >::Set();
+  RCC::APB2ENR::SYSCFGEN::Enable::Set();
+  //LED1 on PortA.5, set PortA.5 as output
+  GPIOA::MODER::MODER5::Output::Set();
+  /* LED2 on PortC.9, LED3 on PortC.8, LED4 on PortC.5 so set PortC.5,8,9 as output */
+  GPIOC::MODERPack<
+      GPIOC::MODER::MODER5::Output,
+      GPIOC::MODER::MODER8::Output,
+      GPIOC::MODER::MODER9::Output
+  >::Set();
+  //Порт А2 и А3 на альтернативный режим работы
+      GPIOA::MODER::MODER2::Alternate::Set();
+      GPIOA::MODER::MODER3::Alternate::Set();
+  //Назначение портов А2 и А3 на альтернативную функцию 7
+      GPIOA::AFRL::AFRL2::Af7::Set();  // USART2 Tx
+      GPIOA::AFRL::AFRL3::Af7::Set();  // USART2 Rx
+  //Подключение USART2 к системе тактирорвания APB1
+      RCC::APB1ENR::USART2EN::Enable::Set();
+      USART2::CR1::OVER8::OversamplingBy16::Set();
+      USART2::CR1::M::Data8bits::Set();
+      USART2::CR1::PCE::ParityControlDisable::Set();
+      USART2::BRR::Write(8'000'000 / 1200); // 16 ÌÃö ñ âíåøíåãî ãåíåðàòîðà HSE
+      USART2::CR1::UE::Enable::Set();
+  return 1;
+ }
+}
+    const char message1[] = "Hello world! ";
+    const char message2[] = "Privet kak dela! ";
+    OsWrapper::Mutex USARTMutex;
+    SendMessageTask<USART2> sendMessageTask1(message1, 100ms);
+    SendMessageTask<USART2> sendMessageTask2(message2, 110ms);
+ int main()
+{
+    using namespace OsWrapper;
+    Rtos::CreateThread(sendMessageTask1, "FirstMessageTask", ThreadPriority::normal);
+    Rtos::CreateThread(sendMessageTask2, "SecondMessageTask", ThreadPriority::highest);
+    Rtos::Start();
+  return 0;
+}
+
+== 5) Результат переделанной программы
+
+image::12_3.jpg[]
