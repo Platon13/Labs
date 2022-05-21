@@ -421,7 +421,7 @@ image::image-2022-05-06-16-22-13-748.png[]
 [source, c]
 private:
   float OldValue = 0.0f; // Объявляем переменную
-  static constexpr float dt = 50.0f;
+  static constexpr float dt = 100.0f;
   static constexpr float RC = 100.0f;
   inline static const float tau = 1.0f - exp(-dt/RC);
   public:
