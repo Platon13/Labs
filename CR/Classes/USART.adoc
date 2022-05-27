@@ -1,0 +1,62 @@
+:toc:
+:toc-title: Оглавление
+
+[.text-center]
+МИНИСТЕРСТВО НАУКИ И ВЫСШЕГО ОБРАЗОВАНИЯ РОССИЙСКОЙ ФЕДЕРАЦИИ +
+Федеральное государственное автономное образовательное учреждение высшего образования +
+«Южно-Уральский государственный университет» +
+(национальный исследовательский университет) +
+Высшая школа электроники и компьютерных наук +
+Кафедра «Информационно-измерительная техника»
+
+[.text-center]
+
+Полный листинг кода класса USART
+
+[.text-right]
+Выполнили: +
+студенты группы КЭ-415 +
+Леонов В.А. +
+Платонов Д.В.
+
+[source, c]
+#pragma once
+#include "usart2registers.hpp" //for usart2registers
+#include "usartdriver.hpp" //for USARTDriver
+template<typename TUSARTReg>
+class Usart
+{
+public:
+Usart(Transmit& aTransmit): transmit(aTransmit) // Хранит ссылку на объект класса Transmit
+{
+}
+static void WriteByte(std::uint8_t byte) // Запись данных в регистр
+{
+TUSARTReg::DR::Write(byte);
+}
+void InterruptHandler() // Прерывание
+{
+if(TUSARTReg::SR::TXE::DataRegisterEmpty::IsSet() &&  TUSARTReg::CR1::TXEIE::InterruptWhenTXE::IsSet())
+{
+transmit.OnNextByteTransmit();
+}
+}
+static void TransmitEnable() // Включение передачи данных
+{
+TUSARTReg::CR1::TE::Enable::Set();
+}
+static void InterruptEnable() // Разрешить прерывание
+{
+TUSARTReg::CR1::TXEIE::InterruptWhenTXE::Set();
+}
+static void InterruptDisable() // Запрещение прерывания
+{
+TUSARTReg::CR1::TXEIE::InterruptInhibited::Set();
+}
+static void TransmitDisable() // Запрещение передачи данных
+{
+TUSARTReg::CR1::RE::Disable::Set();
+}
+private:
+Transmit& transmit;
+};
