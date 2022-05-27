@@ -281,6 +281,6 @@ image::22.jpg[]
 
 image::23.jpg[]
 
-image::24.jpg[]
+image::26.jpg[]
 
-image::25.jpg[]
+image::27.jpg[]
