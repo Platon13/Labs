@@ -1,0 +1,41 @@
+:toc:
+:toc-title: Оглавление
+
+[.text-center]
+МИНИСТЕРСТВО НАУКИ И ВЫСШЕГО ОБРАЗОВАНИЯ РОССИЙСКОЙ ФЕДЕРАЦИИ +
+Федеральное государственное автономное образовательное учреждение высшего образования +
+«Южно-Уральский государственный университет» +
+(национальный исследовательский университет) +
+Высшая школа электроники и компьютерных наук +
+Кафедра «Информационно-измерительная техника»
+
+[.text-center]
+
+Полный листинг кода класса Voltage
+
+[.text-right]
+Выполнили: +
+студенты группы КЭ-415 +
+Леонов В.А. +
+Платонов Д.В.
+
+[source, c]
+#pragma once
+#include "Filter.hpp"
+#include <array>
+#include "Variable.hpp"
+class Voltage : public Variable
+{
+public:
+using Variable::Variable; // Используем объект Variable из класса Variable
+void Calculation(uint32_t codes) override // Описание метода из класса Variable
+{
+Value = (codes*3)/4095;
+}
+float GetValue() override
+{
+return Value;
+}
+void GetValueAndName() override
+{}
+};
