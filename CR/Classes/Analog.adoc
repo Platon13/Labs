@@ -25,111 +25,111 @@
 #define ADC_HPP
 #include <array>
 #include "DMA.hpp"
-enum class Resolution // Êëàññû enum èñïîëüçóþòñÿ äëÿ ïåðå÷èñëåíèÿ. Êîíêðåòíî çäåñü - êîëè÷åñòâî áèòîâ
+enum class Resolution // Классы enum используются для перечисления. Конкретно здесь - количество битов
 {
-  Bits12,
-  Bits10,
-  Bits8,
-  Bits6
+Bits12,
+Bits10,
+Bits8,
+Bits6
 };
-enum class tSampleRate // Êîëèñ÷åñòâî öèêëîâ
+enum class tSampleRate // Колисчество циклов
 {
-  Cycles3,
-  Cycles15,
-  Cycles28,
-  Cycles56,
-  Cycles84,
-  Cycles112,
-  Cycles144,
-  Cycles480
+Cycles3,
+Cycles15,
+Cycles28,
+Cycles56,
+Cycles84,
+Cycles112,
+Cycles144,
+Cycles480
 };
-using myDMA =  DMA<DMA2>; // Ïåðåäàåì DMA DMA2
-template<class T> // Ãîâîðèì, ÷òî êëàññ áóäåò øàáëîííûì
+using myDMA =  DMA<DMA2>; // Передаем DMA DMA2
+template<class T> // Говорим, что класс будет шаблонным
 class Analog
 {
 private:
-  static inline std::uint32_t codes;
-  /* static inline std::array<uint32_t, 2> codes; // Ìàññèâ äàííûõ ñ ÀÖÏ*/
-   static inline std::uint32_t Pcodes = reinterpret_cast<std::uint32_t>(&codes);
+static inline std::uint32_t codes;
+/* static inline std::array<uint32_t, 2> codes; // Массив данных с АЦП*/
+static inline std::uint32_t Pcodes = reinterpret_cast<std::uint32_t>(&codes);
 public:
-  static void Start()
-  {
-   T::CR2::SWSTART::On::Set(); // Íà÷àëî ïðåîáðàçîâàíèé
-  }
-  static void On()
-  {
-    T::CR2::ADON::Enable::Set(); // Âêëþ÷àåì ÀÖÏ1
-  }
-  static void dmaConfig()
-  {
-    T::CR2::DMA::Enable::Set(); // Âêëþ÷åíèå DMA
-    myDMA::ChannelSet(); // Âûáîð êàíàëà
-    myDMA::DataSizeSet(); // Âûáîð ðàçìåðà äàííûõ
-    myDMA::DirectionSet(); // Âûáîð íàïðàâëåíèÿ
-    myDMA::TargetSet(T::DR::Address, Pcodes); // Âûáîð öåëè (èç ÀÖÏ â Pcodes)
-    myDMA::StreamOn(); // Âêëþ÷åíèå ïîòîêà
-  }
-  static void adcConfig(Resolution resolution, tSampleRate vsamplerate) // Íàñòðîéêà ÀÖÏ
-  {
-    switch(resolution)
-    {
-      case Resolution::Bits12:
-      T::CR1::RES::Bits12::Set();
-      break;
-      case Resolution::Bits10:
-      T::CR1::RES::Bits10::Set();
-      break;
-      case Resolution::Bits8:
-      T::CR1::RES::Bits8::Set();
-      break;
-      case Resolution::Bits6:
-      T::CR1::RES::Bits6::Set();
-      break;
-      default:
-      T::CR1::RES::Bits12::Set();
-      break;
-    }
-    switch(vsamplerate)
-    {
-      case tSampleRate::Cycles3:
-      T::SMPR2::SMP0::Cycles3::Set();
-      break;
-      case tSampleRate::Cycles15:
-      T::SMPR2::SMP0::Cycles15::Set();
-      break;
-      case tSampleRate::Cycles28:
-      T::SMPR2::SMP0::Cycles28::Set();
-      break;
-      case tSampleRate::Cycles56:
-      T::SMPR2::SMP0::Cycles56::Set();
-      break;
-      case tSampleRate::Cycles84:
-      T::SMPR2::SMP0::Cycles84::Set();
-      break;
-      case tSampleRate::Cycles112:
-      T::SMPR2::SMP0::Cycles112::Set();
-      break;
-      case tSampleRate::Cycles480:
-      T::SMPR2::SMP0::Cycles480::Set();
-      break;
-      default:
-      T::SMPR2::SMP0::Cycles3::Set(); // from 480 to 3
-      break;
-    }  
-  }  
-  static void SetChannels (std::uint32_t channelNum1)
-  {
-    T::SQR1::L::Conversions1::Set(); // Êîëè÷åñòâî èçìåðåíèé from 16 to 1
-    T::CR1::SCAN::Enable::Set(); // Ðåæèì ñêàíèðîâàíèÿ
-    T::CR2::EOCS::SequenceConversion::Set(); // Óñòàíîâêà ðåæèìà îäèíî÷íîãî ïðåîáðàçîâàíèÿ â ðåãèñòðå
-    T::CR2::CONT::ContinuousConversion::Set();
-    assert(channelNum1<19);
-    T::SQR3::SQ1::Set(0 /*channelNum1*/); // Óñòàíîâêà êàíàëà äëÿ èçìåðåíèÿ
-    T::CR2::DDS::DMARequest::Set(); // Çàïðîñ íà èñîëüçîâàíèå DMA
-  } 
-  static uint16_t GetValue() // std::array<uint32_t, 2>& GetValue()
-  {  
-    return codes; 
-  }
+static void Start()
+{
+T::CR2::SWSTART::On::Set(); // Начало преобразований
+}
+static void On()
+{
+T::CR2::ADON::Enable::Set(); // Включаем АЦП1
+}
+static void dmaConfig()
+{
+T::CR2::DMA::Enable::Set(); // Включение DMA
+myDMA::ChannelSet(); // Выбор канала
+myDMA::DataSizeSet(); // Выбор размера данных
+myDMA::DirectionSet(); // Выбор направления
+myDMA::TargetSet(T::DR::Address, Pcodes); // Выбор цели (из АЦП в Pcodes)
+myDMA::StreamOn(); // Включение потока
+}
+static void adcConfig(Resolution resolution, tSampleRate vsamplerate) // Настройка АЦП
+{
+switch(resolution)
+{
+case Resolution::Bits12:
+T::CR1::RES::Bits12::Set();
+break;
+case Resolution::Bits10:
+T::CR1::RES::Bits10::Set();
+break;
+case Resolution::Bits8:
+T::CR1::RES::Bits8::Set();
+break;
+case Resolution::Bits6:
+T::CR1::RES::Bits6::Set();
+break;
+default:
+T::CR1::RES::Bits12::Set();
+break;
+}
+switch(vsamplerate)
+{
+case tSampleRate::Cycles3:
+T::SMPR2::SMP0::Cycles3::Set();
+break;
+case tSampleRate::Cycles15:
+T::SMPR2::SMP0::Cycles15::Set();
+break;
+case tSampleRate::Cycles28:
+T::SMPR2::SMP0::Cycles28::Set();
+break;
+case tSampleRate::Cycles56:
+T::SMPR2::SMP0::Cycles56::Set();
+break;
+case tSampleRate::Cycles84:
+T::SMPR2::SMP0::Cycles84::Set();
+break;
+case tSampleRate::Cycles112:
+T::SMPR2::SMP0::Cycles112::Set();
+break;
+case tSampleRate::Cycles480:
+T::SMPR2::SMP0::Cycles480::Set();
+break;
+default:
+T::SMPR2::SMP0::Cycles3::Set(); // from 480 to 3
+break;
+}
+}
+static void SetChannels (std::uint32_t channelNum1)
+{
+T::SQR1::L::Conversions1::Set(); // Количество измерений from 16 to 1
+T::CR1::SCAN::Enable::Set(); // Режим сканирования
+T::CR2::EOCS::SequenceConversion::Set(); // Установка режима одиночного преобразования в регистре
+T::CR2::CONT::ContinuousConversion::Set();
+assert(channelNum1<19);
+T::SQR3::SQ1::Set(0 /*channelNum1*/); // Установка канала для измерения
+T::CR2::DDS::DMARequest::Set(); // Запрос на исользование DMA
+}
+static uint16_t GetValue() // std::array<uint32_t, 2>& GetValue()
+{
+return codes;
+}
 };
 #endif
