@@ -1,0 +1,43 @@
+:toc:
+:toc-title: Оглавление
+
+[.text-center]
+МИНИСТЕРСТВО НАУКИ И ВЫСШЕГО ОБРАЗОВАНИЯ РОССИЙСКОЙ ФЕДЕРАЦИИ +
+Федеральное государственное автономное образовательное учреждение высшего образования +
+«Южно-Уральский государственный университет» +
+(национальный исследовательский университет) +
+Высшая школа электроники и компьютерных наук +
+Кафедра «Информационно-измерительная техника»
+
+[.text-center]
+
+Полный листинг кода класса LedTask
+
+[.text-right]
+Выполнили: +
+студенты группы КЭ-415 +
+Платонов Д.В.
+
+[source, c]
+#pragma once
+#include "thread.hpp"
+#include "MainTask.hpp"
+#include "Led.hpp"
+template <auto& MainTask> // В LedTask должен передаваться класс MainTask
+class LedTask : public OsWrapper::Thread<128> // Наследуем Thread
+{
+private:
+float Value;
+Led led; // Создаем объект типа Led и называем его led
+public:
+void Execute() override
+{
+for(;;)
+{
+Value = MainTask.GetVolt(); // Получаем значение напряжения и записываем его в переменную Value*/
+led.CalculateDutyCycle(Value); // Передаем значение напряжения в метод CalculateDutyCycle
+led.SetDutyCycle(Value); // Передача значения
+Sleep(100ms); // Задержка 100 мс для ОСРВ
+}
+}
+};
