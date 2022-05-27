@@ -52,7 +52,7 @@ VoltageValue.Calculation(codes); // Рассчитываем значение
 VoltageValue.GetValueAndName();
 auto var = filter.Update(VoltageValue.GetValue()); // Записываем в переменную var значение напряжения с использованием фильтра
 std::cout<<var<<std::endl;
-Sleep(50ms); // Заснуть на 50 мс
+Sleep(100ms); // Заснуть на 100 мс
 }
 }
   float GetVolt()
