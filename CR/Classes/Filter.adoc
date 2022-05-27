@@ -1,0 +1,45 @@
+:toc:
+:toc-title: Оглавление
+
+[.text-center]
+МИНИСТЕРСТВО НАУКИ И ВЫСШЕГО ОБРАЗОВАНИЯ РОССИЙСКОЙ ФЕДЕРАЦИИ +
+Федеральное государственное автономное образовательное учреждение высшего образования +
+«Южно-Уральский государственный университет» +
+(национальный исследовательский университет) +
+Высшая школа электроники и компьютерных наук +
+Кафедра «Информационно-измерительная техника»
+
+[.text-center]
+
+Полный листинг кода класса Filter
+
+[.text-right]
+Выполнили: +
+студенты группы КЭ-415 +
+Леонов В.А. +
+Платонов Д.В.
+
+[source, c]
+#pragma once
+#include <cmath>
+class Filter
+{
+private:
+float OldValue = 0.0f; // Объявляем переменную
+static constexpr float dt = 100.0f;
+static constexpr float RC = 100.0f;
+inline static const float tau = 1.0f - exp(-dt/RC);
+public:
+float Update(float Value) // Создаем класс и передаем в него значение напряжения
+{
+float FilteredValue = OldValue + (Value - OldValue)*tau; // Формула для фильтрации
+OldValue = FilteredValue;
+return FilteredValue;
+}
+float GetOldValue (float Value)
+{
+float FilteredValue = OldValue + (Value - OldValue)*tau;
+OldValue = FilteredValue;
+return FilteredValue;
+}
+};
