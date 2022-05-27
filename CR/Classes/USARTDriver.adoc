@@ -1,0 +1,60 @@
+:toc:
+:toc-title: Оглавление
+
+[.text-center]
+МИНИСТЕРСТВО НАУКИ И ВЫСШЕГО ОБРАЗОВАНИЯ РОССИЙСКОЙ ФЕДЕРАЦИИ +
+Федеральное государственное автономное образовательное учреждение высшего образования +
+«Южно-Уральский государственный университет» +
+(национальный исследовательский университет) +
+Высшая школа электроники и компьютерных наук +
+Кафедра «Информационно-измерительная техника»
+
+[.text-center]
+
+Полный листинг кода класса USARTDriver
+
+[.text-right]
+Выполнили: +
+студенты группы КЭ-415 +
+Леонов В.А. +
+Платонов Д.В.
+
+[source, c]
+#pragma once
+#include <array>
+#include <cassert>
+class Transmit
+{
+public:
+virtual void OnNextByteTransmit() = 0;
+};
+template<typename TUsart>
+class USARTDriver
+{
+public:
+void OnNextByteTransmit() // Отвечает за побайтовую передачу сообщения
+{
+TUsart::WriteByte(TransmitBuffer[i++]);
+    if (i >= size)
+    {
+      TUsart::TransmitDisable();
+      TUsart::InterruptDisable();
+      i = 0U;
+    }
+  }
+   void SendMessage(const char* message, size_t aSize) // Отвечает за отправку сообщения по USART
+  {
+    assert(size <= 255);
+    memcpy(TransmitBuffer.data(), message, aSize);
+    size = aSize;
+    i = 0U;
+    TUsart::WriteByte(TransmitBuffer[i++]);
+TUsart::TransmitEnable();
+TUsart::InterruptEnable();
+
+  }
+private:
+std::size_t i = 0U; // Номер передаваемого элемента в строке
+std::array<std::uint8_t, 255> TransmitBuffer; // Буфер, хранит передаваемое значение
+size_t size = 0U;  // Размер передаваемой строки
+};
