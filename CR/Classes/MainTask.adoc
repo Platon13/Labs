@@ -1,0 +1,68 @@
+:toc:
+:toc-title: Оглавление
+
+[.text-center]
+МИНИСТЕРСТВО НАУКИ И ВЫСШЕГО ОБРАЗОВАНИЯ РОССИЙСКОЙ ФЕДЕРАЦИИ +
+Федеральное государственное автономное образовательное учреждение высшего образования +
+«Южно-Уральский государственный университет» +
+(национальный исследовательский университет) +
+Высшая школа электроники и компьютерных наук +
+Кафедра «Информационно-измерительная техника»
+
+[.text-center]
+
+Полный листинг класса MainTask
+
+[.text-right]
+Выполнили: +
+студенты группы КЭ-415 +
+Леонов В.А. +
+Платонов Д.В.
+
+[source, c]
+#pragma once
+#include "Voltage.hpp"
+#include "thread.hpp"
+#include "event.hpp"
+#include "Variable.hpp"
+#include "Analog.hpp"
+#include "DMA.hpp"
+#include "Filter.hpp"
+#include <iostream>
+template <typename myAnalog>
+class MainTask : public OsWrapper::Thread<512>
+{
+private:
+Filter filter; // Создаем объект типа Filter и называем его filter
+Voltage VoltageValue = Voltage((3.3F/4095), 0); // Передаем значение в класс Variable и записываем его в переменную VoltageValue
+OsWrapper::Event& myEvent; // Создаем ссылку на событие
+float VoltValue = 0.0F; // Значение напряжения
+public:
+void Execute() override
+{
+myAnalog::adcConfig(Resolution::Bits12, tSampleRate::Cycles3); // Настраиваем АЦП
+myAnalog::SetChannels(18); // Подключаем каналы
+myAnalog::dmaConfig(); // Подключаем DMA
+myAnalog::On(); // Включаем АЦП
+myAnalog::Start(); // Начало измерений
+for(;;)
+{
+uint16_t codes = myAnalog::GetValue(); // Записываем значения напряжения в переменную codes
+VoltageValue.Calculation(codes); // Рассчитываем значение
+VoltageValue.GetValueAndName();
+auto var = filter.Update(VoltageValue.GetValue()); // Записываем в переменную var значение напряжения с использованием фильтра
+std::cout<<var<<std::endl;
+Sleep(50ms); // Заснуть на 50 мс
+}
+}
+  float GetVolt()
+  {
+    return myAnalog::GetValue();
+  }
+  float GetMessage()
+  {
+    return filter.Update(VoltageValue.GetValue());
+  }
+  MainTask(OsWrapper::Event& event): myEvent(event)
+  {}
+};
