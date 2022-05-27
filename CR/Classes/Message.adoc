@@ -1,0 +1,46 @@
+:toc:
+:toc-title: Оглавление
+
+[.text-center]
+МИНИСТЕРСТВО НАУКИ И ВЫСШЕГО ОБРАЗОВАНИЯ РОССИЙСКОЙ ФЕДЕРАЦИИ +
+Федеральное государственное автономное образовательное учреждение высшего образования +
+«Южно-Уральский государственный университет» +
+(национальный исследовательский университет) +
+Высшая школа электроники и компьютерных наук +
+Кафедра «Информационно-измерительная техника»
+
+[.text-center]
+
+Полный листинг кода класса Message
+
+[.text-right]
+Выполнили: +
+студенты группы КЭ-415 +
+Леонов В.А. +
+Платонов Д.В.
+
+[source, c]
+#pragma once
+#include "thread.hpp"//for thread
+#include "usartconfig.hpp"
+#include "Voltage.hpp"
+#include <stdio.h> //for sprintf
+using namespace OsWrapper;
+template<auto& myMainTask>
+class Message: public Thread<512>
+{
+public:
+  void Execute() // Метод, отвечающий за передачу значений
+  {
+    for(;;)
+    {
+   out = myMainTask.GetMessage(); // Переменная, которая содержит значение напряжения
+   sprintf(mes, "Voltage = %1.4f V \n", out); // Информация, которая передается в терминал
+   usartDriver.SendMessage(mes, strlen(mes)); // Отправка сообщения
+   Sleep(333ms); // Заснуть на 100 мс
+    }
+  }
+private:
+  float out;
+  char mes[20]; // Массив, который хранит в себе информацию для отправки
+};
