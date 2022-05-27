@@ -1,0 +1,48 @@
+:toc:
+:toc-title: Оглавление
+
+[.text-center]
+МИНИСТЕРСТВО НАУКИ И ВЫСШЕГО ОБРАЗОВАНИЯ РОССИЙСКОЙ ФЕДЕРАЦИИ +
+Федеральное государственное автономное образовательное учреждение высшего образования +
+«Южно-Уральский государственный университет» +
+(национальный исследовательский университет) +
+Высшая школа электроники и компьютерных наук +
+Кафедра «Информационно-измерительная техника»
+
+[.text-center]
+
+Полный ылистинг кода класса Led
+
+[.text-right]
+Выполнили: +
+студенты группы КЭ-415 +
+Леонов В.А. +
+Платонов Д.В.
+
+[source, c]
+#pragma once
+#include "PWM.hpp"
+#include "tim3registers.hpp"
+#include "LedTask.hpp"
+class Led
+{
+protected:
+uint16_t DutyCycle; // Переменная для регулировки яркости
+float k = 14000.0F;
+float b = 2000.0F;
+PWM<TIM3> pwm; // Передаем третий таймер в класс PWM.hpp
+public:
+void CalculateDutyCycle(uint16_t Value) // Метод для расчета яркости
+{
+if (Value >= 0.2F)
+{
+  DutyCycle = static_cast<uint16_t>(k*static_cast<float>(Value) + b); // Рассчитанная яркость
+}
+else
+DutyCycle = 0; // Светодиод не горит
+}
+void SetDutyCycle(uint16_t DutyCycle) // Метод для передачи рассчитанного значения
+{
+pwm.SetDuty(DutyCycle); // Передать значение яркости в класс PWM
+}
+};
