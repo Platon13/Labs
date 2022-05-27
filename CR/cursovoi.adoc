@@ -284,3 +284,329 @@ image::23.jpg[]
 image::26.jpg[]
 
 image::27.jpg[]
+
+Далее нужно назначить каналы таймеров. Данная настройка производится с помощью реигстров AFRL (для портов с номером от 0 до 7) и AFRH (для портов с номером от 8 до 15).
+
+image::28.jpg[]
+
+image::29.jpg[]
+
+Далее нужно настроить ШИМ. Для этого сначала устанавливается захват на 4 канала.
+
+image::30.jpg[]
+
+image::31.jpg[]
+
+image::32.jpg[]
+
+image::33.jpg[]
+
+После этого включается ШИМ, а также предварительная загрузка.
+
+image::34.jpg[]
+
+image::35.jpg[]
+
+image::36.jpg[]
+
+image::37.jpg[]
+
+image::38.jpg[]
+
+image::39.jpg[]
+
+image::40.jpg[]
+
+image::41.jpg[]
+
+Далее запускаем третий таймер.
+
+image::42.jpg[]
+
+image::43.jpg[]
+
+image::44.jpg[]
+
+=== Класс Message
+
+image::45.jpg[]
+
+Класс Message используется для передачи сообщения. В нем содержатся переменная, содержащая в себе значение напряжения, а также само передаваемое сообщение.
+
+Фрагмент кода представлен ниже.
+
+[source, c]
+ void Execute() // Метод, отвечающий за передачу значений
+  {
+    for(;;)
+    {
+   out = myMainTask.GetVolt(); // Переменная, которая содержит значение напряжения
+   sprintf(mes, "Voltage = %1.4f V \n", out); // Информация, которая передается в терминал
+   usartDriver.SendMessage(mes, strlen(mes)); // Отправка сообщения
+   Sleep(333ms); // Заснуть на 100 мс
+    }
+  }
+  
+  === Класс Led
+
+image::46.jpg[]
+
+Класс Led используется для описания методов расчета яркости светодиодов, а также содержит в себе метод регулировки яркости, который передается в класс PWM.hpp.
+
+Фрагмент кода представлен ниже.
+
+[source, c]
+  void CalculateDutyCycle(uint16_t Value) // Метод для расчета яркости
+  {
+    if (Value >= 0.2F)
+    {
+      DutyCycle = static_cast<uint16_t>(k*static_cast<float>(Value) + b); // Рассчитанная яркость
+    }
+    else
+      DutyCycle = 0; // Светодиод не горит
+  }
+  void SetDutyCycle() // Метод для передачи рассчитанного значения
+  {
+    pwm.SetDuty(DutyCycle); // Передать значение яркости в класс PWM
+  }
+  
+  === Класс LedTask
+
+image::47.jpg[]
+
+Класс LedTask используется для передачи рассчитанных значений DutyCycle в класс Led.hpp.
+
+Фрагмент кода представлен ниже.
+
+[source, c]
+  for(;;)
+    {
+    Value = MainTask.GetVolt(); // Получаем значение напряжения и записываем его в переменную Value
+    Sleep(100ms); // Задержка 100 мс для ОСРВ
+    led.CalculateDutyCycle(Value); // Передаем значение напряжения в метод CalculateDutyCycle
+    led.SetDutyCycle(); // Передача значения
+    }
+    
+=== Класс MainTask
+
+image::48.jpg[]
+
+Класс MainTask используется для запуска измерений, а также расчета значений напряжения и их фильтрации.
+
+Фрагмент кода представлен ниже.
+
+[source, c]
+ void Execute() override
+  {
+    myAnalog::adcConfig(Resolution::Bits12, tSampleRate::Cycles480); // Настраиваем АЦП
+    myAnalog::SetChannels(18); // Подключаем каналы
+    myAnalog::dmaConfig(); // Подключаем DMA
+    myAnalog::On(); // Включаем АЦП
+    myAnalog::Start(); // Начало измерений
+   for(;;)
+  {
+    auto codes = myAnalog::GetValue(); // Записываем значения напряжения в переменную codes
+    VoltageValue.Calculation(codes[0]); // Рассчитываем значение
+    VoltageValue.GetValueAndName();
+    auto var = filter.Update(VoltageValue.GetValue()); // Записываем в переменную var значение напряжения с использованием фильтра
+    std::cout<<var<<std::endl;
+    Sleep(50ms); // Заснуть на 50 мс
+  }
+  }
+
+=== Класс Analog
+
+image::49.jpg[]
+
+Класс Analog используется для настройки АЦП. Содержит в себе настройки таких параметров, как Resolution, SampleRate, а также запускает сам АЦП и содержит метод для настройки DMA.
+
+Фрагмент кода представлен ниже.
+
+[source, c]
+enum class Resolution // Классы enum используются для перечисления. Конкретно здесь - количество битов
+{
+  Bits12,
+  Bits10,
+  Bits8,
+  Bits6
+};
+enum class tSampleRate // Колисчество циклов
+{
+  Cycles3,
+  Cycles15,
+  Cycles28,
+  Cycles56,
+  Cycles84,
+  Cycles112,
+  Cycles144,
+  Cycles480
+};
+
+=== Класс DMA
+
+image::50.jpg[]
+
+Класс DMA используется для настройки DMA. Содержит в себе настройки таких параметров, как ChannelSet, DirectionSet, DataSizeSet, TargetSet.
+
+Фрагмент кода представлен ниже.
+
+[source, c]
+  static void ChannelSet()
+  {
+    D::S0CR::CHSEL::Value0::Set();
+  }
+  static void DirectionSet() // Установка направления
+  {
+    D::S0CR::DIR::Value0::Set();
+  }
+=== Класс Variable
+
+image::51.jpg[]
+
+Класс Variable используется для описания переменных, применяемых в других классах.
+
+Фрагмент кода представлен ниже.
+
+[source, c]
+public:
+  Variable(float k1, float b1): k(k1), b(b1) {}; // Передаем значения коэффициентов k и b
+  virtual void Calculation(std::uint32_t code) = 0; // Рассчитываем значения напряжения
+  virtual float GetValue() = 0;
+  virtual void GetValueAndName() = 0;
+  
+=== Класс Voltage
+
+image::52.jpg[]
+
+Класс Voltage используется для получения рассчитанных значений напряжения.
+
+Фрагмент кода представлен ниже.
+
+[source, c]
+void Calculation(std::uint32_t code) override // Описание метода из класса Variable
+  {
+    Value = k*code + b;
+  }
+   float GetValue() override
+  {
+    return Value;
+  }
+  void GetValueAndName() override
+  {}
+  
+  === Класс PWM
+
+image::53.jpg[]
+
+Класс PWM используется для регулировки яркости светодиодов с помощью ШИМ. Регулировка яркости происходит в зависимости от напряжения. Регулировка происходит с помощью условий if.
+
+Фрагмент кода представлен ниже.
+
+[source, c]
+public:
+  void SetDuty(uint16_t DutyCycle) // Создаем метод и передаем в него значение, рассчитанное в другом классе
+  {
+  if (DutyCycle < 1024)
+  {
+    Timer::CCR1::Write(DutyCycle); // Регулируется яркость первого светодиода
+     Timer::CCR2::Write(0); // Четвертый светодиод не горит
+        Timer::CCR3::Write(0); // Третий светодиод не горит
+          Timer::CCR4::Write(0); // Второй светодиод не горит
+  }
+else  {
+ Timer::CCR1::Write(1024); // Первый свтодиод горит на максимальной яркости
+     Timer::CCR2::Write(0); // Четвертый светодиод не горит
+        Timer::CCR3::Write(0); // Третий светодиод не горит
+          Timer::CCR4::Write(0); // Второй светодиод не горит
+  
+=== Класс Transmit
+
+image::54.jpg[]
+
+Класс Transmit используется для побитовой предачи сообщения.
+
+Фрагмент кода представлен ниже.
+
+[source, c]
+public:
+  virtual void OnNextByteTransmit() = 0; // Доступ класса USART к методу OnNextByteTransmit() класса USARTDriver
+
+=== Класс USART
+
+image::55.jpg[]
+
+Класс USART используется для настройки USART.
+
+Фрагмент кода представлен ниже.
+
+[source, c]
+ public:
+  Usart(Transmit& aTransmit): transmit(aTransmit) // Хранит ссылку на объект класса Transmit
+    {
+    }
+   static void WriteByte(std::uint8_t byte) // Запись данных в регистр
+  {
+    TUSARTReg::DR::Write(byte);
+  }
+
+=== Класс USARTDriver
+
+image::56.jpg[]
+
+Класс USARTDriver используется для отправки сообщения.
+
+Фрагмент кода представлен ниже.
+
+[source, c]
+public:
+   void OnNextByteTransmit() // Отвечает за побайтовую передачу сообщения
+  {
+    TUsart::WriteByte(TransmitBuffer[i++]);
+    if (i >= size)
+    {
+      TUsart::TransmitDisable();
+      TUsart::InterruptDisable();
+      i = 0U;
+    }
+  }
+   void SendMessage(const char* message, size_t aSize) // Отвечает за отправку сообщения по USART
+  {
+    assert(size <= 255);
+    memcpy(TransmitBuffer.data(), message, aSize);
+    size = aSize;
+    i = 0U;
+    TUsart::WriteByte(TransmitBuffer[i++]);
+    TUsart::TransmitEnable();
+    TUsart::InterruptEnable();
+  }
+  
+ === Класс Filter
+
+image::57.jpg[]
+
+Класс Filter используется для фильтрации полученных значений напряжения.
+
+Фрагмент кода представлен ниже.
+
+[source, c]
+private:
+  float OldValue = 0.0f; // Объявляем переменную
+  static constexpr float dt = 50.0f;
+  static constexpr float RC = 100.0f;
+  inline static const float tau = 1.0f - exp(-dt/RC);
+  public:
+  float Update(float Value) // Создаем класс и передаем в него значение напряжения
+  {
+    float FilteredValue = OldValue + (Value - OldValue)*tau; // Формула для фильтрации
+    OldValue = FilteredValue;
+    return FilteredValue;
+  }
+  float GetOldValue (float Value)
+  {
+    float FilteredValue = OldValue + (Value - OldValue)*tau;
+    OldValue = FilteredValue;
+    return FilteredValue;
+  }
+ 
+== Подключение платы к компьютеру
+Подключим отладчик к плате, и подключим плату к компьютеру. Результат представлен на рисунке 6.
