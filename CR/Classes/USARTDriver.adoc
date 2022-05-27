@@ -51,7 +51,6 @@ TUsart::WriteByte(TransmitBuffer[i++]);
     TUsart::WriteByte(TransmitBuffer[i++]);
 TUsart::TransmitEnable();
 TUsart::InterruptEnable();
-
   }
 private:
 std::size_t i = 0U; // Номер передаваемого элемента в строке
