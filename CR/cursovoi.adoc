@@ -371,7 +371,7 @@ image::46.jpg[]
     pwm.SetDuty(DutyCycle); // Передать значение яркости в класс PWM
   }
   
-  === Класс LedTask
+=== Класс LedTask
 
 image::47.jpg[]
 
@@ -460,6 +460,7 @@ image::50.jpg[]
   {
     D::S0CR::DIR::Value0::Set();
   }
+  
 === Класс Variable
 
 image::51.jpg[]
@@ -495,7 +496,7 @@ void Calculation(std::uint32_t code) override // Описание метода �
   void GetValueAndName() override
   {}
   
-  === Класс PWM
+=== Класс PWM
 
 image::53.jpg[]
 
@@ -581,7 +582,7 @@ public:
     TUsart::InterruptEnable();
   }
   
- === Класс Filter
+=== Класс Filter
 
 image::57.jpg[]
 
